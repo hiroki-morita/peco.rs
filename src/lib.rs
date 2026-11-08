@@ -7,6 +7,7 @@ mod combinator;
 mod error;
 mod parser;
 mod primitive;
+mod transform;
 
 pub use error::{Diagnostic, GrammarError, ParseError};
 pub use parser::{ParseOutput, Parser, Span};
