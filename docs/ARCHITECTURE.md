@@ -97,7 +97,7 @@ pub fn recursive<T: 'static>(
 ) -> Parser<T>;
 ```
 
-`build` に渡す引数は未完成ルールへの参照であり、返した本体がそのルールを定義する。Rustの変数初期化中に自分自身を参照する必要がない。定義は構築時に一度だけ行い、入力ごとに再構築しない。
+`build` に渡す引数は未完成ルールへの参照であり、返した本体がそのルールを定義する。Rustの変数初期化中に自分自身を参照する必要がない。定義は構築時に一度だけ行い、入力ごとに再構築しない。`recursive` のビルダー検証に失敗した場合は、実行時にその構築エラーを `Fatal` として返すパーサを返す。
 
 ```rust
 #[derive(Debug, PartialEq)]
@@ -152,7 +152,7 @@ impl GrammarBuilder {
 
 たとえば `Expr <- Expr "+" Term / Term` は `Expr <- Term ("+" Term)*` に書き換え、得られた列を左foldして左結合ASTを構築する。右再帰や括弧の再帰は、再帰呼出しまでに入力が進めば利用できる。
 
-`star` / `plus` は各成功時に入力位置の増加を検証する。`literal("").star()` や `p.optional().star()` が消費なしで成功した場合、無限ループや黙った打切りではなく `NonProgressingRepetition` を返す。入力を進める再帰にも深さ上限を設け、スタック枯渇前に `RecursionLimit` を返す。初期値は保守的に設定して対象環境で検証し、実行オプションで変更可能にする。
+`star` / `plus` は各成功時に入力位置の増加を検証する。`literal("").star()` や `p.optional().star()` が消費なしで成功した場合、無限ループや黙った打切りではなく `NonProgressingRepetition` を返す。入力を進める再帰にも深さ上限を設け、スタック枯渇前に `RecursionLimit` を返す。既定の同時ルール呼出し上限は64とし、`ParseOptions { recursion_limit }` を `parse_with_options` / `parse_prefix_with_options` に渡して変更できる。0は全ルール呼出しを拒否する。30段の括弧成功と65段の制限エラーをテストする。上限を引き上げた場合のスタック容量は保証しない。ルールIDには生存中のセルの同一性を用い、独立した文法間で衝突させない。
 
 ## 6. パース結果からユーザ定義型への変換
 

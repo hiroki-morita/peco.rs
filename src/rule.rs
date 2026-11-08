@@ -133,7 +133,23 @@ impl GrammarBuilder {
                     rule: rule.name.clone(),
                 })
             })?;
-            body.run(ctx, pos)
+            let key = (Rc::as_ptr(&cell) as usize, pos);
+            if ctx.active.contains(&key) {
+                return Err(Failure::Fatal(GrammarError::LeftRecursion {
+                    rule: rule.name.clone(),
+                    offset: pos,
+                }));
+            }
+            if ctx.active.len() >= ctx.options.recursion_limit {
+                return Err(Failure::Fatal(GrammarError::RecursionLimit {
+                    limit: ctx.options.recursion_limit,
+                    offset: pos,
+                }));
+            }
+            ctx.active.insert(key);
+            let result = body.run(ctx, pos);
+            ctx.active.remove(&key);
+            result
         });
         parser.dependencies.push(dependency);
         Ok(parser)
@@ -183,6 +199,34 @@ impl GrammarBuilder {
         });
         result.dependencies.clear();
         Ok(result)
+    }
+}
+
+/// Defines one recursive rule by passing a non-owning self reference to `build`.
+/// Left recursion is rejected at execution. Builder errors become fatal parse errors.
+///
+/// ```
+/// use peg_combinator::{literal, recursive};
+/// let nested = recursive("nested", |nested| {
+///     literal("(").ignore_then(nested).then_ignore(literal(")")).or(literal("x"))
+/// });
+/// assert_eq!(nested.parse("((x))"), Ok(()));
+/// ```
+pub fn recursive<T: 'static>(
+    name: impl Into<String>,
+    build: impl FnOnce(Parser<T>) -> Parser<T>,
+) -> Parser<T> {
+    let result = (|| {
+        let mut builder = GrammarBuilder::new();
+        let rule = builder.declare(name);
+        let reference = builder.reference(&rule)?;
+        let body = build(reference.clone());
+        builder.define(&rule, body)?;
+        builder.finish(reference)
+    })();
+    match result {
+        Ok(parser) => parser,
+        Err(error) => Parser::new(move |_, _| Err(Failure::Fatal(error.clone()))),
     }
 }
 
@@ -269,6 +313,126 @@ mod tests {
         assert!(matches!(
             raw.parse("a"),
             Err(ParseError::Fatal(GrammarError::ExpiredRule { .. }))
+        ));
+    }
+}
+
+#[cfg(test)]
+mod recursion_tests {
+    use super::*;
+    use crate::{ParseError, ParseOptions, and, literal, not};
+
+    #[test]
+    fn nested_and_right_recursive_rules_restore_execution_state() {
+        let p = recursive("nested", |p| {
+            literal("(")
+                .ignore_then(p)
+                .then_ignore(literal(")"))
+                .or(literal("x"))
+        });
+        for _ in 0..2 {
+            assert!(p.parse("((x)").is_err());
+            assert_eq!(p.parse("((x))"), Ok(()));
+        }
+        let right = recursive("right", |p| literal("a").ignore_then(p.optional()).ignore());
+        assert_eq!(right.parse("aaaa"), Ok(()));
+        // A completed call at the same offset must be removed from the active set.
+        assert_eq!(and(p.clone()).ignore_then(p).parse("(x)"), Ok(()));
+    }
+
+    #[test]
+    fn left_recursion_is_never_hidden() {
+        let left = recursive("left", |p| p.or(literal("x")));
+        let parsers = [
+            left.clone(),
+            left.clone().optional().ignore(),
+            left.clone().star().ignore(),
+            left.clone().plus().ignore(),
+            and(left.clone()),
+            not(left),
+        ];
+        for parser in parsers {
+            assert!(matches!(
+                parser.parse("x"),
+                Err(ParseError::Fatal(GrammarError::LeftRecursion {
+                    offset: 0,
+                    ..
+                }))
+            ));
+        }
+        let look = recursive("look", and);
+        assert!(matches!(
+            look.parse(""),
+            Err(ParseError::Fatal(GrammarError::LeftRecursion { .. }))
+        ));
+        let mut builder = GrammarBuilder::new();
+        let a = builder.declare::<()>("A");
+        let b = builder.declare("B");
+        builder.define(&a, builder.reference(&b).unwrap()).unwrap();
+        builder.define(&b, builder.reference(&a).unwrap()).unwrap();
+        let root = builder.reference(&a).unwrap();
+        assert!(matches!(
+            builder.finish(root).unwrap().parse(""),
+            Err(ParseError::Fatal(GrammarError::LeftRecursion { .. }))
+        ));
+    }
+
+    #[test]
+    fn mutual_recursion_and_independent_grammar_ids_work() {
+        let mut builder = GrammarBuilder::new();
+        let a = builder.declare("A");
+        let b = builder.declare("B");
+        builder
+            .define(
+                &a,
+                literal("a")
+                    .ignore_then(builder.reference(&b).unwrap().optional())
+                    .ignore(),
+            )
+            .unwrap();
+        builder
+            .define(
+                &b,
+                literal("b")
+                    .ignore_then(builder.reference(&a).unwrap().optional())
+                    .ignore(),
+            )
+            .unwrap();
+        let root = builder.reference(&a).unwrap();
+        assert_eq!(builder.finish(root).unwrap().parse("abab"), Ok(()));
+        let inner = recursive("same name", |_| literal("x"));
+        let outer = recursive("same name", |_| inner);
+        assert_eq!(outer.parse("x"), Ok(()));
+    }
+
+    #[test]
+    fn recursion_limits_and_cleanup_are_per_call() {
+        let p = recursive("nested", |p| {
+            literal("(")
+                .ignore_then(p)
+                .then_ignore(literal(")"))
+                .or(literal("x"))
+        });
+        let options = ParseOptions { recursion_limit: 2 };
+        assert!(matches!(
+            p.parse_with_options("((x))", options),
+            Err(ParseError::Fatal(GrammarError::RecursionLimit {
+                limit: 2,
+                offset: 2
+            }))
+        ));
+        assert_eq!(p.parse_with_options("(x)", options), Ok(()));
+        assert!(matches!(
+            p.parse_prefix_with_options("x!", ParseOptions { recursion_limit: 0 }),
+            Err(ParseError::Fatal(GrammarError::RecursionLimit { .. }))
+        ));
+        assert_eq!(
+            p.parse(&format!("{}x{}", "(".repeat(30), ")".repeat(30))),
+            Ok(())
+        );
+        assert!(matches!(
+            p.parse(&format!("{}x{}", "(".repeat(65), ")".repeat(65))),
+            Err(ParseError::Fatal(GrammarError::RecursionLimit { .. }))
         ));
     }
 }

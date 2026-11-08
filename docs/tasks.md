@@ -64,7 +64,7 @@
 
 ## T06: 再帰実行と停止性
 
-- [ ] 実装・検証完了
+- [x] 実装・検証完了
 
 依存: T05。対象: `src/rule.rs`、`src/parser.rs`、`src/error.rs`。
 

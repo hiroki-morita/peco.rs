@@ -1,4 +1,4 @@
-use std::rc::Rc;
+use std::{collections::HashSet, rc::Rc};
 
 use crate::{Diagnostic, ParseError, error::Failure};
 
@@ -20,8 +20,26 @@ pub struct ParseOutput<T> {
     pub consumed: usize,
 }
 
+/// Execution settings applied independently to each parse call.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct ParseOptions {
+    /// Maximum simultaneously active nonterminal calls. Zero rejects every call.
+    /// Raising this limit may exhaust the thread stack; it is not a stack size guarantee.
+    pub recursion_limit: usize,
+}
+
+impl Default for ParseOptions {
+    fn default() -> Self {
+        Self {
+            recursion_limit: 64,
+        }
+    }
+}
+
 pub(crate) struct Context<'i> {
     pub(crate) input: &'i str,
+    pub(crate) active: HashSet<(usize, usize)>,
+    pub(crate) options: ParseOptions,
 }
 
 pub(crate) type Step<T> = Result<(T, usize), Failure>;
@@ -82,7 +100,12 @@ impl<T: 'static> Parser<T> {
 
     /// Parses the entire input, returning a mismatch if a suffix remains.
     pub fn parse(&self, input: &str) -> Result<T, ParseError> {
-        let output = self.parse_prefix(input)?;
+        self.parse_with_options(input, ParseOptions::default())
+    }
+
+    /// Parses the entire input with explicit execution settings.
+    pub fn parse_with_options(&self, input: &str, options: ParseOptions) -> Result<T, ParseError> {
+        let output = self.parse_prefix_with_options(input, options)?;
         if output.consumed == input.len() {
             Ok(output.value)
         } else {
@@ -95,7 +118,20 @@ impl<T: 'static> Parser<T> {
 
     /// Parses a prefix without requiring the end of input.
     pub fn parse_prefix(&self, input: &str) -> Result<ParseOutput<T>, ParseError> {
-        let mut context = Context { input };
+        self.parse_prefix_with_options(input, ParseOptions::default())
+    }
+
+    /// Parses a prefix with explicit execution settings.
+    pub fn parse_prefix_with_options(
+        &self,
+        input: &str,
+        options: ParseOptions,
+    ) -> Result<ParseOutput<T>, ParseError> {
+        let mut context = Context {
+            input,
+            active: HashSet::new(),
+            options,
+        };
         let (value, consumed) = (self.exec)(&mut context, 0)?;
         debug_assert!(context.input.is_char_boundary(consumed));
         Ok(ParseOutput { value, consumed })
