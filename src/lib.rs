@@ -1,14 +1,10 @@
-pub fn add(left: u64, right: u64) -> u64 {
-    left + right
-}
+//! PEG parser combinators with owned outputs and explicit backtracking.
+//!
+//! Parsers share their executable through `Rc` and are intended for single-threaded use.
+//! Input positions are UTF-8 byte offsets. Parsing does not skip whitespace implicitly.
 
-#[cfg(test)]
-mod tests {
-    use super::*;
+mod error;
+mod parser;
 
-    #[test]
-    fn it_works() {
-        let result = add(2, 2);
-        assert_eq!(result, 4);
-    }
-}
+pub use error::{Diagnostic, GrammarError, ParseError};
+pub use parser::{ParseOutput, Parser, Span};

@@ -1,6 +1,6 @@
 # プロジェクト概要
 
-`peg-combinator` はRust edition 2024のPEGパーサコンビネータライブラリ。共有可能な `Parser<T>` を合成し、再帰ルールとユーザ定義型の出力を扱う。現在は設計段階で、`src/lib.rs` は初期テンプレート。
+`peg-combinator` はRust edition 2024のPEGパーサコンビネータライブラリ。共有可能な `Parser<T>` を合成し、再帰ルールとユーザ定義型の出力を扱う。実装の進捗は `docs/tasks.md` を参照する。
 
 作業前に [設計](docs/ARCHITECTURE.md) と [実装タスク](docs/tasks.md) を読む。API・意味論は設計に合わせ、変更時は関連する文書・例・テストも更新する。完了したタスクはチェックを付ける。
 
