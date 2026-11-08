@@ -147,7 +147,13 @@ impl GrammarBuilder {
                 }));
             }
             ctx.active.insert(key);
-            let result = body.run(ctx, pos);
+            let result = body.run(ctx, pos).map_err(|error| match error {
+                Failure::Mismatch(mut diagnostic) => {
+                    diagnostic.context.insert(0, rule.name.clone());
+                    Failure::Mismatch(diagnostic)
+                }
+                error => error,
+            });
             ctx.active.remove(&key);
             result
         });

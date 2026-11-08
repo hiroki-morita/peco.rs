@@ -108,6 +108,12 @@ impl fmt::Display for ParseError {
                 if let Some(message) = &diagnostic.message {
                     write!(f, ": {message}")?;
                 }
+                if let Some(span) = diagnostic.span {
+                    write!(f, " (bytes {}..{})", span.start, span.end)?;
+                }
+                if !diagnostic.context.is_empty() {
+                    write!(f, " [in {}]", diagnostic.context.join(" > "))?;
+                }
                 Ok(())
             }
             Self::Fatal(error) => error.fmt(f),
@@ -125,3 +131,164 @@ impl Error for ParseError {
 }
 
 pub(crate) use ParseError as Failure;
+
+/// An error displayed with a caller-supplied input for line and column lookup.
+/// Supply the original input that produced the error.
+pub struct InputDiagnostic<'a> {
+    error: &'a ParseError,
+    input: &'a str,
+}
+
+impl ParseError {
+    /// Adds one-based line and Unicode scalar column numbers to the display.
+    /// Newlines are LF; tabs count as one scalar. Invalid offsets are reported
+    /// explicitly instead of slicing at a non-character boundary.
+    pub fn display_with_input<'a>(&'a self, input: &'a str) -> InputDiagnostic<'a> {
+        InputDiagnostic { error: self, input }
+    }
+}
+
+impl fmt::Display for InputDiagnostic<'_> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", self.error)?;
+        let offset = match self.error {
+            ParseError::Mismatch(d) => Some(d.offset),
+            ParseError::Fatal(
+                GrammarError::NonProgressingRepetition { offset }
+                | GrammarError::LeftRecursion { offset, .. }
+                | GrammarError::RecursionLimit { offset, .. },
+            ) => Some(*offset),
+            _ => None,
+        };
+        if let Some(offset) = offset {
+            if let Some(prefix) = self.input.get(..offset) {
+                let line = prefix.bytes().filter(|&b| b == b'\n').count() + 1;
+                let column = prefix.rsplit('\n').next().unwrap_or("").chars().count() + 1;
+                write!(f, " (line {line}, column {column})")?;
+            } else {
+                write!(f, " (invalid input offset {offset})")?;
+            }
+        }
+        Ok(())
+    }
+}
+
+impl<T: 'static> crate::Parser<T> {
+    /// Replaces mismatch expectations with a user-facing label.
+    /// Keeps the failure position, conversion explanation, and rule context.
+    pub fn label(self, name: impl Into<String>) -> Self {
+        let name = name.into();
+        self.wrap(move |parser, ctx, pos| {
+            parser.run(ctx, pos).map_err(|error| match error {
+                Failure::Mismatch(mut d) => {
+                    d.expected = BTreeSet::from([name.clone()]);
+                    Failure::Mismatch(d)
+                }
+                error => error,
+            })
+        })
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::{and, literal, not, recursive};
+
+    #[test]
+    fn labels_and_rule_context_survive_conversion_errors() {
+        let number = recursive("Number", |_| {
+            literal("256")
+                .text()
+                .try_map(|s| s.parse::<u8>())
+                .label("small integer")
+        });
+        let root = recursive("Root", |_| literal("猫\n").ignore_then(number));
+        let error = root.parse("猫\n256").unwrap_err();
+        let ParseError::Mismatch(d) = &error else {
+            panic!("expected mismatch")
+        };
+        assert_eq!(d.context, ["Root", "Number"]);
+        assert_eq!(d.expected, ["small integer".to_owned()].into());
+        assert_eq!(d.span, Some(Span { start: 4, end: 7 }));
+        let text = error.display_with_input("猫\n256").to_string();
+        assert!(text.contains("line 2, column 4"));
+        assert!(text.contains("bytes 4..7"));
+        assert!(text.contains("Root > Number"));
+        assert!(text.contains(d.message.as_ref().unwrap()));
+    }
+
+    #[test]
+    fn unicode_columns_eof_and_invalid_offsets_are_safe() {
+        for (input, offset, location) in [
+            ("猫\n犬", 7, "line 2, column 2"),
+            ("猫\t", 4, "line 1, column 3"),
+            ("", 0, "line 1, column 1"),
+        ] {
+            let error = ParseError::Mismatch(Diagnostic::expected(offset, "x"));
+            assert!(
+                error
+                    .display_with_input(input)
+                    .to_string()
+                    .contains(location)
+            );
+        }
+        for offset in [1, 99] {
+            let error = ParseError::Mismatch(Diagnostic::expected(offset, "x"));
+            assert!(
+                error
+                    .display_with_input("猫")
+                    .to_string()
+                    .contains("invalid input offset")
+            );
+        }
+        let error = ParseError::Fatal(GrammarError::RecursionLimit {
+            limit: 0,
+            offset: 0,
+        });
+        assert!(error.source().is_some());
+        assert!(
+            error
+                .display_with_input("")
+                .to_string()
+                .contains("line 1, column 1")
+        );
+    }
+
+    #[test]
+    fn lookahead_and_successful_branches_do_not_pollute_diagnostics() {
+        let parser = literal("abc").or(literal("a")).then(literal("!"));
+        let ParseError::Mismatch(d) = parser.parse("abx").unwrap_err() else {
+            panic!()
+        };
+        assert_eq!(d.offset, 1);
+        assert_eq!(d.expected, ["\"!\"".to_owned()].into());
+        let ParseError::Mismatch(d) = not(literal("abc"))
+            .then(literal("!"))
+            .parse("abx")
+            .unwrap_err()
+        else {
+            panic!()
+        };
+        assert_eq!(d.offset, 0);
+        assert_eq!(d.expected, ["\"!\"".to_owned()].into());
+        let parser = and(literal("abc").label("word"));
+        assert!(
+            parser
+                .parse("abx")
+                .unwrap_err()
+                .to_string()
+                .contains("word at byte 2")
+        );
+        let error = literal("b")
+            .or(literal("a"))
+            .or(literal("b"))
+            .parse("x")
+            .unwrap_err();
+        assert_eq!(error.to_string(), "expected \"a\" or \"b\" at byte 0");
+        assert!(matches!(
+            literal("").star().label("list").parse(""),
+            Err(ParseError::Fatal(_))
+        ));
+    }
+}

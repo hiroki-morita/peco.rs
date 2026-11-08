@@ -10,7 +10,7 @@ mod primitive;
 mod rule;
 mod transform;
 
-pub use error::{Diagnostic, GrammarError, ParseError};
+pub use error::{Diagnostic, GrammarError, InputDiagnostic, ParseError};
 pub use parser::{ParseOptions, ParseOutput, Parser, Span};
 
 pub use primitive::{any_char, char, char_range, end, literal, one_of, satisfy};

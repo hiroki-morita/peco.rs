@@ -77,7 +77,7 @@
 
 ## T07: 利用者向け診断
 
-- [ ] 実装・検証完了
+- [x] 実装・検証完了
 
 依存: T06。対象: `src/error.rs`、`src/rule.rs`、`src/parser.rs`。
 
