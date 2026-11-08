@@ -128,6 +128,20 @@ let value = expr.parse("((42))")?;
 
 相互再帰には `GrammarBuilder` を設ける。`declare::<T>(name)` で型付き `Rule<T>` を作り、`reference(&rule)` で `Parser<T>` を得て、`define(&rule, body)` で本体を一度登録する。`finish(root)` が未定義ルールや重複定義、別のビルダーのルール参照を検証し、完成した `Parser<T>` を返す。構築途中の参照を実行すると通常不一致ではなく構築エラーを返す。
 
+具体的な構築APIは次のとおり。ルール名は診断用ラベルであり、同名でも異なるルールを宣言できる。
+
+```rust
+impl GrammarBuilder {
+    pub fn new() -> Self;
+    pub fn declare<T: 'static>(&mut self, name: impl Into<String>) -> Rule<T>;
+    pub fn reference<T: 'static>(&self, rule: &Rule<T>) -> Result<Parser<T>, GrammarError>;
+    pub fn define<T: 'static>(&mut self, rule: &Rule<T>, body: Parser<T>) -> Result<(), GrammarError>;
+    pub fn finish<T: 'static>(self, root: Parser<T>) -> Result<Parser<T>, GrammarError>;
+}
+```
+
+`reference` と `define` は渡されたハンドルの所属を検証する。`define` は重複定義をその場で拒否する。`finish` は全宣言の定義と、ルート・全本体に含まれる未完成参照の所属を検証する。参照情報は合成・変換を通して保持する。完成済みの別文法のルートは所有者を保持した独立パーサなので合成可能である。`finish` はエラー時もビルダーを消費し、その文法の未完成参照は失効する。完成前の参照は本体の登録済みにかかわらず `UndefinedRule`、所有者消滅後は `ExpiredRule` となる。
+
 内部では、文法所有者が異なる出力型のルールセルを型消去して保持し、型付きハンドルが対応するセルを指す。型の対応はビルダーが保証し、利用者にダウンキャストを要求しない。セルには一度だけ本体を設定する `OnceCell` 相当を用いる。
 
 完成したルートは文法所有者への強参照を保持し、本体内の非終端参照はセルへの弱参照を保持する。これにより `文法 → 本体 → 非終端 → 文法` の強参照循環を避ける。ルートのcloneやルートを含む合成パーサも所有者を保持する。所有者が消滅した内部参照を単独で実行した場合は明示的なエラーとし、panicにしない。`recursive` はこの仕組みの単一ルール用の簡易APIとする。

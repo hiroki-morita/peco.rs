@@ -7,6 +7,7 @@ mod combinator;
 mod error;
 mod parser;
 mod primitive;
+mod rule;
 mod transform;
 
 pub use error::{Diagnostic, GrammarError, ParseError};
@@ -15,3 +16,5 @@ pub use parser::{ParseOutput, Parser, Span};
 pub use primitive::{any_char, char, char_range, end, literal, one_of, satisfy};
 
 pub use combinator::{and, not};
+
+pub use rule::{GrammarBuilder, Rule};

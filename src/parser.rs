@@ -34,12 +34,14 @@ type Exec<T> = dyn for<'i> Fn(&mut Context<'i>, usize) -> Step<T>;
 /// This type does not implement `Send` or `Sync`.
 pub struct Parser<T> {
     exec: Rc<Exec<T>>,
+    pub(crate) dependencies: Vec<crate::rule::Dependency>,
 }
 
 impl<T> Clone for Parser<T> {
     fn clone(&self) -> Self {
         Self {
             exec: self.exec.clone(),
+            dependencies: self.dependencies.clone(),
         }
     }
 }
@@ -48,6 +50,7 @@ impl<T: 'static> Parser<T> {
     pub(crate) fn new(exec: impl for<'i> Fn(&mut Context<'i>, usize) -> Step<T> + 'static) -> Self {
         Self {
             exec: Rc::new(exec),
+            dependencies: Vec::new(),
         }
     }
 
@@ -59,7 +62,10 @@ impl<T: 'static> Parser<T> {
         self,
         f: impl Fn(&Self, &mut Context<'_>, usize) -> Step<U> + 'static,
     ) -> Parser<U> {
-        Parser::new(move |ctx, pos| f(&self, ctx, pos))
+        let dependencies = self.dependencies.clone();
+        let mut result = Parser::new(move |ctx, pos| f(&self, ctx, pos));
+        result.dependencies = dependencies;
+        result
     }
 
     pub(crate) fn combine<U: 'static, V: 'static>(
@@ -67,7 +73,11 @@ impl<T: 'static> Parser<T> {
         other: Parser<U>,
         f: impl Fn(&Self, &Parser<U>, &mut Context<'_>, usize) -> Step<V> + 'static,
     ) -> Parser<V> {
-        Parser::new(move |ctx, pos| f(&self, &other, ctx, pos))
+        let mut dependencies = self.dependencies.clone();
+        dependencies.extend(other.dependencies.clone());
+        let mut result = Parser::new(move |ctx, pos| f(&self, &other, ctx, pos));
+        result.dependencies = dependencies;
+        result
     }
 
     /// Parses the entire input, returning a mismatch if a suffix remains.
