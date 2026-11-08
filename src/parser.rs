@@ -51,6 +51,25 @@ impl<T: 'static> Parser<T> {
         }
     }
 
+    pub(crate) fn run(&self, ctx: &mut Context<'_>, pos: usize) -> Step<T> {
+        (self.exec)(ctx, pos)
+    }
+
+    pub(crate) fn wrap<U: 'static>(
+        self,
+        f: impl Fn(&Self, &mut Context<'_>, usize) -> Step<U> + 'static,
+    ) -> Parser<U> {
+        Parser::new(move |ctx, pos| f(&self, ctx, pos))
+    }
+
+    pub(crate) fn combine<U: 'static, V: 'static>(
+        self,
+        other: Parser<U>,
+        f: impl Fn(&Self, &Parser<U>, &mut Context<'_>, usize) -> Step<V> + 'static,
+    ) -> Parser<V> {
+        Parser::new(move |ctx, pos| f(&self, &other, ctx, pos))
+    }
+
     /// Parses the entire input, returning a mismatch if a suffix remains.
     pub fn parse(&self, input: &str) -> Result<T, ParseError> {
         let output = self.parse_prefix(input)?;

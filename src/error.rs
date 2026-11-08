@@ -18,6 +18,18 @@ pub struct Diagnostic {
 }
 
 impl Diagnostic {
+    pub(crate) fn merge(mut self, other: Self) -> Self {
+        match self.offset.cmp(&other.offset) {
+            std::cmp::Ordering::Less => other,
+            std::cmp::Ordering::Greater => self,
+            std::cmp::Ordering::Equal => {
+                self.expected.extend(other.expected);
+                // Keep the first branch's explanation and rule path at ties.
+                self
+            }
+        }
+    }
+
     /// Creates a mismatch with one expected item.
     pub fn expected(offset: usize, expected: impl Into<String>) -> Self {
         Self {

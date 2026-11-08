@@ -27,7 +27,7 @@
 
 ## T03: 合成とPEGの制御
 
-- [ ] 実装・検証完了
+- [x] 実装・検証完了
 
 依存: T02。対象: `src/combinator.rs`、`src/error.rs`。
 
