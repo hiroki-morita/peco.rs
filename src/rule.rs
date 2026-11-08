@@ -230,7 +230,7 @@ impl GrammarBuilder {
 /// Left recursion is rejected at execution. Builder errors become fatal parse errors.
 ///
 /// ```
-/// use peg_combinator::{literal, recursive};
+/// use peco::{literal, recursive};
 /// let nested = recursive("nested", |nested| {
 ///     literal("(").ignore_then(nested).then_ignore(literal(")")).or(literal("x"))
 /// });

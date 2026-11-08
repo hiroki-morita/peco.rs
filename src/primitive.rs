@@ -5,7 +5,7 @@ use crate::{Diagnostic, Parser, error::Failure};
 /// Matches an exact string, including the empty string, and discards its value.
 ///
 /// ```
-/// use peg_combinator::literal;
+/// use peco::literal;
 /// assert_eq!(literal("猫").parse("猫"), Ok(()));
 /// ```
 pub fn literal(text: impl Into<String>) -> Parser<()> {

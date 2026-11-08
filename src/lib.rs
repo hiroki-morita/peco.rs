@@ -1,4 +1,4 @@
-//! PEG parser combinators with owned outputs and explicit backtracking.
+//! peco.rs: PEG parser combinators with owned outputs and explicit backtracking.
 //!
 //! Parsers share their executable through `Rc` and are intended for single-threaded use.
 //! Input positions are UTF-8 byte offsets. Parsing does not skip whitespace implicitly.
@@ -9,7 +9,7 @@
 //!
 //! Examples from the architecture:
 //! ```rust
-//! # use peg_combinator::*;
+//! # use peco::*;
 //! let digit = satisfy("ASCII digit", |c| c.is_ascii_digit());
 //! let digits = digit.clone().plus();
 //! let signed_digits = char('-').optional().then(digits);
@@ -18,7 +18,7 @@
 //! ```
 //!
 //! ```rust
-//! # use peg_combinator::*;
+//! # use peco::*;
 //! #[derive(Debug, PartialEq)]
 //! enum Expr {
 //!     Number(u64),
@@ -44,7 +44,7 @@
 //! ```
 //!
 //! ```rust
-//! # use peg_combinator::*;
+//! # use peco::*;
 //! #[derive(Debug)]
 //! struct Assignment {
 //!     name: String,

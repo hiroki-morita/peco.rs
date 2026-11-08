@@ -9,7 +9,7 @@ impl<T: 'static> Parser<T> {
     /// this function too. External side effects are never rolled back.
     ///
     /// ```
-    /// use peg_combinator::char;
+    /// use peco::char;
     /// assert_eq!(char('x').map(|c| c.to_string()).parse("x"), Ok("x".to_owned()));
     /// ```
     pub fn map<U: 'static>(self, f: impl Fn(T) -> U + 'static) -> Parser<U> {

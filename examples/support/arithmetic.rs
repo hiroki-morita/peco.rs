@@ -1,4 +1,4 @@
-use peg_combinator::{Parser, literal, one_of, recursive, satisfy};
+use peco::{Parser, literal, one_of, recursive, satisfy};
 
 // Represents integer literals and binary arithmetic as an owned syntax tree.
 #[derive(Debug, PartialEq)]

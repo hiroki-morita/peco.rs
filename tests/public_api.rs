@@ -1,4 +1,4 @@
-use peg_combinator::*;
+use peco::*;
 
 #[path = "../examples/support/arithmetic.rs"]
 mod arithmetic;

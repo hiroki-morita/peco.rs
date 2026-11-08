@@ -3,5 +3,5 @@
 version = 4
 
 [[package]]
-name = "peg-combinator"
+name = "peco"
 version = "0.1.0"
