@@ -5,6 +5,7 @@ mod arithmetic;
 
 #[test]
 fn assignment_returns_a_user_struct() {
+    // Models a library user's record returned directly by a parser.
     #[derive(Debug, PartialEq)]
     struct Assignment {
         name: String,
@@ -29,6 +30,7 @@ fn assignment_returns_a_user_struct() {
 
 #[test]
 fn recursive_rule_returns_an_owned_enum() {
+    // Models recursively nested output without borrowing the input.
     #[derive(Debug, PartialEq)]
     enum Expr {
         Number(u64),

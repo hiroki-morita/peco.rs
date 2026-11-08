@@ -36,13 +36,19 @@ impl Default for ParseOptions {
     }
 }
 
+// Holds input and execution state for one independent parse call.
 pub(crate) struct Context<'i> {
+    // Borrows the original input without extending its lifetime.
     pub(crate) input: &'i str,
+    // Tracks active (rule identity, byte offset) pairs for recursion checks.
     pub(crate) active: HashSet<(usize, usize)>,
+    // Keeps execution limits local to this parse call.
     pub(crate) options: ParseOptions,
 }
 
+// Returns a value and next byte offset, or an unconsumed failure.
 pub(crate) type Step<T> = Result<(T, usize), Failure>;
+// Erases the executable type while accepting input of any lifetime.
 type Exec<T> = dyn for<'i> Fn(&mut Context<'i>, usize) -> Step<T>;
 
 /// A reusable, shared parser producing an owned value.
@@ -51,7 +57,9 @@ type Exec<T> = dyn for<'i> Fn(&mut Context<'i>, usize) -> Step<T>;
 /// its own execution context; the input need not have a `'static` lifetime.
 /// This type does not implement `Send` or `Sync`.
 pub struct Parser<T> {
+    // Shares the executable without requiring the output to be Clone.
     exec: Rc<Exec<T>>,
+    // Shares unresolved rule references for grammar validation after composition.
     pub(crate) dependencies: Rc<Vec<crate::rule::Dependency>>,
 }
 
@@ -65,6 +73,7 @@ impl<T> Clone for Parser<T> {
 }
 
 impl<T: 'static> Parser<T> {
+    // Creates an executable with no unresolved rule references.
     pub(crate) fn new(exec: impl for<'i> Fn(&mut Context<'i>, usize) -> Step<T> + 'static) -> Self {
         Self {
             exec: Rc::new(exec),
@@ -72,10 +81,12 @@ impl<T: 'static> Parser<T> {
         }
     }
 
+    // Executes at a caller-supplied byte offset in the current context.
     pub(crate) fn run(&self, ctx: &mut Context<'_>, pos: usize) -> Step<T> {
         (self.exec)(ctx, pos)
     }
 
+    // Wraps one parser while preserving its unresolved rule references.
     pub(crate) fn wrap<U: 'static>(
         self,
         f: impl Fn(&Self, &mut Context<'_>, usize) -> Step<U> + 'static,
@@ -86,6 +97,7 @@ impl<T: 'static> Parser<T> {
         result
     }
 
+    // Combines two parsers and carries both sets of unresolved references.
     pub(crate) fn combine<U: 'static, V: 'static>(
         self,
         other: Parser<U>,
@@ -175,6 +187,7 @@ mod tests {
 
     #[test]
     fn clone_and_repeated_execution_do_not_require_clone_output() {
+        // Exercises parser sharing with an output that deliberately lacks Clone.
         #[derive(Debug, PartialEq)]
         struct Owned(String);
         let parser = Parser::new(|ctx, _| Ok((Owned(ctx.input.to_owned()), ctx.input.len())));

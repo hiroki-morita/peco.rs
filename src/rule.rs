@@ -5,27 +5,39 @@ use std::{
 
 use crate::{GrammarError, Parser, error::Failure};
 
+// Owns all rule definitions and controls when references may execute.
 pub(crate) struct Grammar {
+    // Becomes true only after every rule and dependency has been validated.
     ready: Cell<bool>,
+    // Keeps heterogeneous rule cells alive for the lifetime of the grammar.
     rules: RefCell<Vec<Rc<dyn ErasedRule>>>,
 }
 
+// Records the owner and label of an unresolved nonterminal reference.
 #[derive(Clone)]
 pub(crate) struct Dependency {
+    // Identifies the referenced grammar without creating an ownership cycle.
     pub(crate) owner: Weak<Grammar>,
+    // Keeps a diagnostic label available even after the referenced cell expires.
     name: String,
 }
 
+// Allows rules with different output types to be validated uniformly.
 trait ErasedRule {
+    // Checks that a definition exists and its unresolved references belong here.
     fn validate(&self, owner: &Rc<Grammar>) -> Result<(), GrammarError>;
 }
 
+// Stores the typed definition that references access through weak handles.
 struct RuleCell<T> {
+    // Labels this definition in validation errors.
     name: String,
+    // Accepts exactly one definition for this nonterminal.
     body: OnceCell<Parser<T>>,
 }
 
 impl<T: 'static> ErasedRule for RuleCell<T> {
+    // Validates the typed body through the type-erased rule interface.
     fn validate(&self, owner: &Rc<Grammar>) -> Result<(), GrammarError> {
         let body = self.body.get().ok_or_else(|| GrammarError::UndefinedRule {
             rule: self.name.clone(),
@@ -34,6 +46,7 @@ impl<T: 'static> ErasedRule for RuleCell<T> {
     }
 }
 
+// Rejects unresolved references owned by a different grammar builder.
 fn validate_dependencies(
     dependencies: &[Dependency],
     owner: &Rc<Grammar>,
@@ -51,8 +64,11 @@ fn validate_dependencies(
 /// A typed, non-owning handle to a declared nonterminal.
 /// Cloning a handle does not keep a grammar alive or require `T: Clone`.
 pub struct Rule<T> {
+    // Refers to the typed definition without retaining it.
     cell: Weak<RuleCell<T>>,
+    // Identifies the owning grammar and lets execution detect expired owners.
     owner: Weak<Grammar>,
+    // Keeps a diagnostic label available even after the referenced cell expires.
     name: String,
 }
 
@@ -69,6 +85,7 @@ impl<T> Clone for Rule<T> {
 /// Declares and defines mutually recursive rules before creating an owning root.
 /// Unfinished references can be composed but cannot be executed successfully.
 pub struct GrammarBuilder {
+    // Retains all declarations until ownership transfers to a finished root.
     owner: Rc<Grammar>,
 }
 
@@ -181,6 +198,7 @@ impl GrammarBuilder {
             })
     }
 
+    // Verifies that a typed handle was declared by this builder.
     fn check<T>(&self, rule: &Rule<T>) -> Result<(), GrammarError> {
         if rule.owner.ptr_eq(&Rc::downgrade(&self.owner)) {
             Ok(())

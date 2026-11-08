@@ -88,6 +88,7 @@ mod tests {
     use super::*;
     use crate::{ParseError, char, literal, satisfy};
 
+    // Represents a user-defined record built by a result transformation.
     #[derive(Debug, PartialEq)]
     struct Assignment {
         name: String,
@@ -112,6 +113,7 @@ mod tests {
                 value: 42
             })
         );
+        // Gives alternatives a common output type for ordered choice.
         #[derive(Debug, PartialEq)]
         enum Value {
             A,
@@ -157,8 +159,10 @@ mod tests {
     #[test]
     fn failed_branch_drops_values_and_side_effects_are_not_rolled_back() {
         use std::{cell::Cell, rc::Rc};
+        // Counts drops to verify that failed branches release their output values.
         struct Tracked(Rc<Cell<usize>>);
         impl Drop for Tracked {
+            // Records destruction in the counter shared with the test.
             fn drop(&mut self) {
                 self.0.set(self.0.get() + 1);
             }

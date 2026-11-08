@@ -18,6 +18,7 @@ pub struct Diagnostic {
 }
 
 impl Diagnostic {
+    // Keeps the farthest mismatch, unioning expectations at equal offsets.
     pub(crate) fn merge(mut self, other: Self) -> Self {
         match self.offset.cmp(&other.offset) {
             std::cmp::Ordering::Less => other,
@@ -130,12 +131,15 @@ impl Error for ParseError {
     }
 }
 
+// Uses the public error representation for internal recoverable and fatal failures.
 pub(crate) use ParseError as Failure;
 
 /// An error displayed with a caller-supplied input for line and column lookup.
 /// Supply the original input that produced the error.
 pub struct InputDiagnostic<'a> {
+    // Borrows the diagnostic without copying its messages or rule context.
     error: &'a ParseError,
+    // Borrows the original input for on-demand line and column calculation.
     input: &'a str,
 }
 

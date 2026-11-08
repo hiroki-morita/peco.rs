@@ -1,5 +1,6 @@
 use peg_combinator::{Parser, literal, one_of, recursive, satisfy};
 
+// Represents integer literals and binary arithmetic as an owned syntax tree.
 #[derive(Debug, PartialEq)]
 pub enum Expr {
     Number(i64),
@@ -11,6 +12,7 @@ pub enum Expr {
 }
 
 impl Expr {
+    // Evaluates the tree with checked arithmetic, returning None on overflow.
     pub fn evaluate(&self) -> Option<i64> {
         match self {
             Self::Number(value) => Some(*value),
@@ -27,10 +29,12 @@ impl Expr {
     }
 }
 
+// Consumes optional Unicode whitespace between arithmetic tokens.
 fn whitespace() -> Parser<()> {
     satisfy("whitespace", |c| c.is_whitespace()).star().ignore()
 }
 
+// Converts a first operand and its suffixes into a left-associative tree.
 fn fold(first: Expr, rest: Vec<(char, Expr)>) -> Expr {
     rest.into_iter()
         .fold(first, |left, (op, right)| Expr::Binary {
@@ -40,6 +44,7 @@ fn fold(first: Expr, rest: Vec<(char, Expr)>) -> Expr {
         })
 }
 
+// Builds a recursive expression parser with multiplication before addition.
 pub fn expression() -> Parser<Expr> {
     let expression = recursive("Expression", |expression| {
         let number = satisfy("ASCII digit", |c| c.is_ascii_digit())

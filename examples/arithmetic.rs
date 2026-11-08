@@ -2,6 +2,7 @@
 #[path = "support/arithmetic.rs"]
 mod arithmetic;
 
+// Parses a supplied expression and prints its checked integer value.
 fn main() -> Result<(), String> {
     let input = std::env::args()
         .nth(1)

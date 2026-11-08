@@ -34,6 +34,7 @@ impl<T: 'static> Parser<T> {
         self.repeat(true)
     }
 
+    // Implements greedy repetition with a minimum count and a progress check.
     fn repeat(self, require_one: bool) -> Parser<Vec<T>> {
         self.wrap(move |parser, ctx, mut pos| {
             let mut values = Vec::new();
@@ -92,6 +93,7 @@ mod tests {
     use super::*;
     use crate::{ParseError, literal};
 
+    // Extracts a mismatch for assertions and rejects other test outcomes.
     fn diagnostic<T>(result: Result<T, ParseError>) -> Diagnostic {
         match result {
             Err(ParseError::Mismatch(d)) => d,
