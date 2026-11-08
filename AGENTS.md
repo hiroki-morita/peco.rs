@@ -7,9 +7,9 @@
 ## フォルダ構造
 
 - `src/lib.rs`: クレートの入口、公開APIの再エクスポート。
-- `src/{parser,primitive,combinator,transform,rule,error}.rs`: 実行基盤、基本式、合成、結果変換、再帰、診断（実装時に作成）。
-- `tests/`: 公開APIの統合テスト（実装時に作成）。内部単体テストは各モジュールに置く。
-- `examples/`: 実行できる利用例（実装時に作成）。
+- `src/{parser,primitive,combinator,transform,rule,error}.rs`: 実行基盤、基本式、合成、結果変換、再帰、診断。
+- `tests/`: 公開APIの統合テスト。内部単体テストは各モジュールに置く。
+- `examples/`: 実行できる利用例。
 - `docs/ARCHITECTURE.md`: 設計仕様。`docs/tasks.md`: 依存関係付きの実装計画。
 
 ## 実装規約

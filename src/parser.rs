@@ -52,7 +52,7 @@ type Exec<T> = dyn for<'i> Fn(&mut Context<'i>, usize) -> Step<T>;
 /// This type does not implement `Send` or `Sync`.
 pub struct Parser<T> {
     exec: Rc<Exec<T>>,
-    pub(crate) dependencies: Vec<crate::rule::Dependency>,
+    pub(crate) dependencies: Rc<Vec<crate::rule::Dependency>>,
 }
 
 impl<T> Clone for Parser<T> {
@@ -68,7 +68,7 @@ impl<T: 'static> Parser<T> {
     pub(crate) fn new(exec: impl for<'i> Fn(&mut Context<'i>, usize) -> Step<T> + 'static) -> Self {
         Self {
             exec: Rc::new(exec),
-            dependencies: Vec::new(),
+            dependencies: Rc::new(Vec::new()),
         }
     }
 
@@ -92,7 +92,7 @@ impl<T: 'static> Parser<T> {
         f: impl Fn(&Self, &Parser<U>, &mut Context<'_>, usize) -> Step<V> + 'static,
     ) -> Parser<V> {
         let mut dependencies = self.dependencies.clone();
-        dependencies.extend(other.dependencies.clone());
+        Rc::make_mut(&mut dependencies).extend(other.dependencies.iter().cloned());
         let mut result = Parser::new(move |ctx, pos| f(&self, &other, ctx, pos));
         result.dependencies = dependencies;
         result

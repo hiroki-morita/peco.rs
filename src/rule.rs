@@ -157,7 +157,7 @@ impl GrammarBuilder {
             ctx.active.remove(&key);
             result
         });
-        parser.dependencies.push(dependency);
+        Rc::make_mut(&mut parser.dependencies).push(dependency);
         Ok(parser)
     }
 
@@ -203,7 +203,7 @@ impl GrammarBuilder {
             let _keep_alive = &self.owner;
             root.run(ctx, pos)
         });
-        result.dependencies.clear();
+        result.dependencies = Rc::new(Vec::new());
         Ok(result)
     }
 }
@@ -440,5 +440,31 @@ mod recursion_tests {
             p.parse(&format!("{}x{}", "(".repeat(65), ")".repeat(65))),
             Err(ParseError::Fatal(GrammarError::RecursionLimit { .. }))
         ));
+    }
+}
+
+#[cfg(test)]
+mod lifecycle_tests {
+    use super::*;
+    use crate::literal;
+
+    #[test]
+    fn dropping_all_roots_drops_recursive_bodies_and_action_captures() {
+        let marker = Rc::new(());
+        let weak = Rc::downgrade(&marker);
+        let parser = recursive("Recursive", |reference| {
+            let owned = marker;
+            literal("a")
+                .ignore_then(reference.optional())
+                .map(move |_| {
+                    let _keep_alive = &owned;
+                })
+        });
+        assert_eq!(parser.parse("aaa"), Ok(()));
+        let clone = parser.clone();
+        drop(parser);
+        assert!(weak.upgrade().is_some());
+        drop(clone);
+        assert!(weak.upgrade().is_none());
     }
 }

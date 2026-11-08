@@ -89,7 +89,7 @@
 
 ## T08: 公開例と初版の仕上げ
 
-- [ ] 実装・検証完了
+- [x] 実装・検証完了
 
 依存: T07。対象: `src/lib.rs`、各公開APIのrustdoc、`tests/`、`examples/`、設計文書。
 
@@ -99,3 +99,23 @@
 - 設計と実装の差分を解消し、初期テンプレートの説明を更新する。メモ化なし・所有出力・単一スレッドという制限を公開ドキュメントに記載する。
 
 完了条件: `cargo fmt --check`、`cargo test`、`cargo clippy --all-targets -- -D warnings` が成功し、利用例を実行できる。設計の検証計画に未検証項目がないことを確認する。
+
+
+## 完了時の検証記録
+
+全8タスクを実装済み。`cargo fmt --check`、`cargo test`（単体27件・統合6件・ドキュメント6件）、`cargo clippy --all-targets -- -D warnings`、`RUSTDOCFLAGS='-D warnings' cargo doc --no-deps` が成功した。算術式の公開例 `cargo run --example arithmetic -- '10 - 2 * (3 + 1)'` は `2` を出力する。
+
+設計9節の検証項目と実装の対応は以下のとおり。
+
+| 検証項目 | 主な検証箇所 |
+| --- | --- |
+| 全基本式、EOF、空入力、Unicode、消費位置 | `primitive::tests`、`combinator::tests`、`tests/public_api.rs` |
+| 選択の巻戻し・確定、反復の貪欲性、先読み・オプション | `combinator::tests` |
+| 非進行反復、直接・間接左再帰、致命的エラー伝播 | `combinator::tests`、`rule::recursion_tests` |
+| 変数への束縛、clone、非Clone出力、再実行 | `parser::tests`、`tests/public_api.rs` |
+| struct・enum、変換失敗、Span、値の破棄 | `transform::tests`、`tests/public_api.rs` |
+| 再帰・相互再帰、構築検証、深さ制限、文法ID | `rule::tests`、`rule::recursion_tests` |
+| ルート保持中の寿命と全ルート破棄後の本体・保持値の解放 | `rule::tests`、`rule::lifecycle_tests` |
+| 診断の最遠位置・同位置併合・不要診断の除外、行列表示 | `combinator::tests`、`error::tests` |
+| 全体・部分パース、複数回実行 | `parser::tests`、`tests/public_api.rs` |
+| 設計の利用例、算術式の優先順位・左結合 | `src/lib.rs` のドキュメントテスト、`tests/public_api.rs`、`examples/arithmetic.rs` |
