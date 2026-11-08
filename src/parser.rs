@@ -45,8 +45,6 @@ impl<T> Clone for Parser<T> {
 }
 
 impl<T: 'static> Parser<T> {
-    // Until primitives are added, only internal execution tests construct parsers.
-    #[cfg(test)]
     pub(crate) fn new(exec: impl for<'i> Fn(&mut Context<'i>, usize) -> Step<T> + 'static) -> Self {
         Self {
             exec: Rc::new(exec),
