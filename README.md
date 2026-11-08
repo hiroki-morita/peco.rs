@@ -139,7 +139,44 @@ fn main() -> Result<(), ParseError> {
 }
 ```
 
-相互再帰には `GrammarBuilder` を使います。`declare` で型付きルールを宣言し、`reference` で参照を取得、`define` で本体を登録し、`finish` で検証済みのルートを作成します。[設計文書](docs/ARCHITECTURE.md)と[統合テスト](tests/public_api.rs)に詳細があります。
+### 相互再帰
+
+相互再帰には `GrammarBuilder` を使います。たとえば次の2ルールは互いを参照し、`A` を開始ルールにすると `a`、`ab`、`aba` のような交互の文字列に一致します。
+
+```text
+A <- "a" B?
+B <- "b" A?
+```
+
+先に両方を `declare` して `reference` を取得すると、定義順に依存せず本体を組み立てられます。
+
+```rust
+use peco::{GrammarBuilder, literal};
+
+fn main() -> Result<(), Box<dyn std::error::Error>> {
+    let mut grammar = GrammarBuilder::new();
+    let a = grammar.declare::<()>("A");
+    let b = grammar.declare::<()>("B");
+    let a_ref = grammar.reference(&a)?;
+    let b_ref = grammar.reference(&b)?;
+
+    grammar.define(&a, literal("a").then(b_ref.optional()).ignore())?;
+    grammar.define(&b, literal("b").then(a_ref.clone().optional()).ignore())?;
+    let parser = grammar.finish(a_ref)?;
+
+    for input in ["a", "ab", "aba", "ababa"] {
+        assert_eq!(parser.parse(input)?, ());
+    }
+    for input in ["", "aa", "ba"] {
+        assert!(parser.parse(input).is_err());
+    }
+    Ok(())
+}
+```
+
+この例では一致判定だけを行うため、出力型を `()` とし、`ignore()` で連接の結果を捨てています。次のルールを呼ぶ前に必ず1文字消費するので、左再帰にはなりません。`finish` は全ルールの定義などを検証し、文法を保持する実行可能なルートを返します。
+
+[設計文書](docs/ARCHITECTURE.md)と[統合テスト](tests/public_api.rs)にも詳細があります。
 
 ## 実行とエラー
 
